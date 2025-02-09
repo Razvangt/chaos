@@ -1,1 +1,1 @@
-os.execute("odin build src")
+os.execute("odin build chaos")

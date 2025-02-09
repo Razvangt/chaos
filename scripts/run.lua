@@ -1,1 +1,1 @@
-os.execute("odin run src")
+os.execute("odin run chaos")
