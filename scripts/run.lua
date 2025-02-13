@@ -1,1 +1,1 @@
-os.execute("odin run chaos")
+os.execute("odin run nexo")

@@ -1,24 +1,40 @@
 package chaos
 
+
 import "core:fmt"
 import "core:math"
 import "vendor:sdl3"
 import "vendor:vulkan"
 
-
+import "gpu"
 
 AppState :: struct {
   title:   cstring,
-	w:       i32,
-	h:       i32,
-	window:  ^sdl3.Window,
-	render:  ^sdl3.Renderer,
+  rend: ^gpu.Context,
 	running: bool,
 }
 
 
-init :: proc(state: ^AppState) -> bool {
-	if !sdl3.SetAppMetadata("SDL APP", "1.0", "com.raz.chaos") {
+APP_NAME       :cstring = "SDL APP";
+APP_VERSION    :cstring = "1.0";
+APP_IDENTIFIER :cstring = "com.chaos.dev";
+
+vertices := [?]gpu.Vertex{
+		{{-0.5, -0.5}, {0.0, 0.0, 1.0}},
+		{{ 0.5, -0.5}, {1.0, 0.0, 0.0}},
+		{{ 0.5,  0.5}, {0.0, 1.0, 0.0}},
+		{{-0.5,  0.5}, {1.0, 0.0, 0.0}},
+	};
+
+indices := [?]u16{
+		0, 1, 2,
+		2, 3, 0,
+	};
+
+
+
+init :: proc(using state: ^AppState) -> bool {
+	if !sdl3.SetAppMetadata(APP_NAME, APP_VERSION, APP_VERSION) {
 		fmt.println("SDL Metadata failed:", sdl3.GetError())
 		return false
 	}
@@ -33,22 +49,21 @@ init :: proc(state: ^AppState) -> bool {
     sdl3.WindowFlag.VULKAN
   }
 
-	window := sdl3.CreateWindow(state.title, state.w, state.h, flags)
-	if window == nil {
+	rend.window = sdl3.CreateWindow(title, rend.w, rend.h, flags)
+	if rend.window == nil {
 		fmt.println("Window creation failed:", sdl3.GetError())
-		return false
+		return false;
 	}
   
-  vulkan.CreateInstance();
 
-	state.running = true
-	fmt.println("\n# INIT SUCCESFULL")
-	return true
+  gpu.init_vulkan(rend,vertices[:],indices[:]);
+
+	running = true;
+	fmt.println("\n# INIT SUCCESFULL");
+	return true;
 }
 
 cleanup :: proc(state: ^AppState) {
-	sdl3.DestroyRenderer(state.render)
-	sdl3.DestroyWindow(state.window) // Destroy window when finished
 	sdl3.Quit() // Ensure sdl3 is quit when the program exits 
 }
 

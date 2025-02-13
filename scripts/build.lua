@@ -1,1 +1,1 @@
-os.execute("odin build chaos")
+os.execute("odin build nexo")
