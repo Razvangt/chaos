@@ -32,8 +32,15 @@ indices := [?]u16{
 	};
 
 
+default_render::proc(w: i32,h : i32) -> (render : gpu.Context){
+  render.h = w
+  render.w = w
+  return render
+}
 
-init :: proc(using state: ^AppState) -> bool {
+
+init :: proc(using state: ^AppState) -> (ok:bool) {
+	fmt.println("Start Init SDL");
 	if !sdl3.SetAppMetadata(APP_NAME, APP_VERSION, APP_VERSION) {
 		fmt.println("SDL Metadata failed:", sdl3.GetError())
 		return false
@@ -64,6 +71,8 @@ init :: proc(using state: ^AppState) -> bool {
 }
 
 cleanup :: proc(state: ^AppState) {
+  gpu.clean_vulkan(state.rend);
+  sdl3.DestroyWindow(state.rend.window);
 	sdl3.Quit() // Ensure sdl3 is quit when the program exits 
 }
 

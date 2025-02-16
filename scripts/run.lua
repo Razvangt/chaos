@@ -1,1 +1,1 @@
-os.execute("odin run nexo")
+os.execute("odin run nexo -out=bin/release/nexo.exe")
