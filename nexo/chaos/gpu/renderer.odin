@@ -2,6 +2,7 @@ package gpu
 
 import "core:c"
 import "core:os"
+import "core:slice"
 import "core:fmt"
 import "core:strings"
 import "vendor:sdl3"
@@ -35,14 +36,14 @@ init_vulkan :: proc(using ctx: ^Context, vertices: []Vertex, indices: []u16) -> 
 	}
 
 	create_swap_chain(ctx) or_return
-	create_image_views(ctx)
-	create_graphics_pipeline(ctx, "shader.vert", "shader.frag")
-	create_framebuffers(ctx)
-	create_command_pool(ctx)
-	create_vertex_buffer(ctx, vertices)
-	create_index_buffer(ctx, indices)
-	create_command_buffers(ctx)
-	create_sync_objects(ctx)
+	create_image_views(ctx) or_return
+	create_graphics_pipeline(ctx, "shader.vert", "shader.frag") or_return
+	create_framebuffers(ctx) or_return
+	create_command_pool(ctx) or_return 
+	create_vertex_buffer(ctx, vertices) or_return
+	create_index_buffer(ctx, indices) or_return
+	create_command_buffers(ctx) or_return
+	create_sync_objects(ctx) or_return
 
 
 	fmt.println("Vulkan context created")
@@ -420,36 +421,23 @@ create_image_views :: proc(using ctx: ^Context) -> bool {
 }
 
 create_graphics_pipeline :: proc(using ctx: ^Context, vs_name: string, fs_name: string) -> bool {
-	vs_code := compile_shader(vs_name, .vertex_shader)
-	fs_code := compile_shader(fs_name, .fragment_shader)
-	/*
-		vs_code, vs_ok := os.read_entire_file(vs_path);
-		fs_code, fs_ok := os.read_entire_file(fs_path);
-		if !vs_ok
-		{
-			fmt.eprintf("Error: could not load vertex shader %q\n", vs_path);
-			os.exit(1);
-		}
-		
-		if !fs_ok
-		{
-			fmt.eprintf("Error: could not load fragment shader %q\n", fs_path);
-			os.exit(1);
-		}
-	*/
+	v_ok,vs_code := compile_shader(vs_name, .VertexShader) 
+  if !v_ok do return false
+  defer delete(vs_code)
 
-	defer {
-		delete(vs_code)
-		delete(fs_code)
-	}
+	f_ok,fs_code := compile_shader(fs_name, .FragmentShader)
+  if !f_ok do return false
+	defer delete(fs_code)
+	
 
-	vs_shader := create_shader_module(ctx, vs_code)
-	fs_shader := create_shader_module(ctx, fs_code)
-	defer 
-	{
-		vk.DestroyShaderModule(device, vs_shader, nil)
-		vk.DestroyShaderModule(device, fs_shader, nil)
-	}
+	vm_ok,vs_shader := create_shader_module(ctx, vs_code)
+  if !vm_ok do return false
+	defer vk.DestroyShaderModule(device, vs_shader, nil)
+
+	fm_ok,fs_shader := create_shader_module(ctx, fs_code)
+  if !fm_ok do return false
+	defer  vk.DestroyShaderModule(device, fs_shader, nil)
+	
 
 	vs_info: vk.PipelineShaderStageCreateInfo
 	vs_info.sType = .PIPELINE_SHADER_STAGE_CREATE_INFO
@@ -556,7 +544,7 @@ create_graphics_pipeline :: proc(using ctx: ^Context, vs_name: string, fs_name: 
 		return false
 	}
 
-	create_render_pass(ctx)
+	create_render_pass(ctx) or_return
 
 	pipeline_info: vk.GraphicsPipelineCreateInfo
 	pipeline_info.sType = .GRAPHICS_PIPELINE_CREATE_INFO
@@ -585,22 +573,21 @@ create_graphics_pipeline :: proc(using ctx: ^Context, vs_name: string, fs_name: 
 }
 
 
-compile_shader :: proc(name: string, kind: shaderc.shaderKind) -> []u8
-{
+compile_shader :: proc(name: string, kind: shaderc.shaderKind) -> (ok: bool , content: []u8 ) {
 	src_path := fmt.tprintf("./shaders/%s", name);
 	cmp_path := fmt.tprintf("./shaders/compiled/%s.spv", name);
 	src_time, src_err := os.last_write_time_by_name(src_path);
 	if (src_err != os.ERROR_NONE)
 	{
 		fmt.eprintf("Failed to open shader %q\n", src_path);
-		return nil;
+		return false, nil;
 	}
 	
 	cmp_time, cmp_err := os.last_write_time_by_name(cmp_path);
 	if cmp_err == os.ERROR_NONE && cmp_time >= src_time
 	{
 		code, _ := os.read_entire_file(cmp_path);
-		return code;
+		return true,code;
 	}
 	
 	
@@ -623,16 +610,301 @@ compile_shader :: proc(name: string, kind: shaderc.shaderKind) -> []u8
 	if status != .Success
 	{
 		fmt.printf("%s: Error: %s\n", name, shaderc.result_get_error_message(res));
-		return nil;
+		return false,nil;
 	}
 	
 	length := shaderc.result_get_length(res);
-	out := make([]u8, length);
-	c_out := shaderc.result_get_bytes(res);
-
-  copy(raw_data(out), c_out);
-	os.write_entire_file(cmp_path, out);
-	
-	return out;
+	bytes := (shaderc.result_get_bytes(res)); 
+  shaderCode := transmute([]u8)bytes[:length];
+	os.write_entire_file(cmp_path, shaderCode);
+	return true,shaderCode;
 }
+
+create_render_pass :: proc(using ctx: ^Context) -> (ok: bool){
+	color_attachment: vk.AttachmentDescription;
+	color_attachment.format = swap_chain.format.format;
+	color_attachment.samples = {._1};
+	color_attachment.loadOp = .CLEAR;
+	color_attachment.storeOp = .STORE;
+	color_attachment.stencilLoadOp = .DONT_CARE;
+	color_attachment.stencilStoreOp = .DONT_CARE;
+	color_attachment.initialLayout = .UNDEFINED;
+	color_attachment.finalLayout = .PRESENT_SRC_KHR;
+	
+	color_attachment_ref: vk.AttachmentReference;
+	color_attachment_ref.attachment = 0;
+	color_attachment_ref.layout = .COLOR_ATTACHMENT_OPTIMAL;
+	
+	subpass: vk.SubpassDescription;
+	subpass.pipelineBindPoint = .GRAPHICS;
+	subpass.colorAttachmentCount = 1;
+	subpass.pColorAttachments = &color_attachment_ref;
+	
+	dependency: vk.SubpassDependency;
+	dependency.srcSubpass = vk.SUBPASS_EXTERNAL;
+	dependency.dstSubpass = 0;
+	dependency.srcStageMask = {.COLOR_ATTACHMENT_OUTPUT};
+	dependency.srcAccessMask = {};
+	dependency.dstStageMask = {.COLOR_ATTACHMENT_OUTPUT};
+	dependency.dstAccessMask = {.COLOR_ATTACHMENT_WRITE};
+	
+	render_pass_info: vk.RenderPassCreateInfo;
+	render_pass_info.sType = .RENDER_PASS_CREATE_INFO;
+	render_pass_info.attachmentCount = 1;
+	render_pass_info.pAttachments = &color_attachment;
+	render_pass_info.subpassCount = 1;
+	render_pass_info.pSubpasses = &subpass;
+	render_pass_info.dependencyCount = 1;
+	render_pass_info.pDependencies = &dependency;
+	
+	if res := vk.CreateRenderPass(device, &render_pass_info, nil, &pipeline.render_pass); res != .SUCCESS{
+		fmt.eprintf("Error: Failed to create render pass!\n");
+		return false;
+	}
+  return true;
+}
+
+
+
+create_shader_module::proc(using ctx: ^Context, code: []u8) -> (ok : bool ,  content : vk.ShaderModule) {
+    create_info: vk.ShaderModuleCreateInfo;
+    create_info.sType   = .SHADER_MODULE_CREATE_INFO;
+    create_info.codeSize = len(code);
+    create_info.pCode = cast(^u32)raw_data(code);
+
+    shader: vk.ShaderModule;
+    if res := vk.CreateShaderModule(device,&create_info,nil,&shader); res != .SUCCESS{
+      fmt.eprintf("Error: Could not create shader Module! \n");
+      return false,shader;
+    }
+
+    return true,shader;
+}
+
+
+create_framebuffers :: proc(using ctx: ^Context) -> (ok: bool){
+	swap_chain.framebuffers = make([]vk.Framebuffer, len(swap_chain.image_views));
+	for v, i in swap_chain.image_views
+	{
+		attachments := [?]vk.ImageView{v};
+		
+		framebuffer_info: vk.FramebufferCreateInfo;
+		framebuffer_info.sType = .FRAMEBUFFER_CREATE_INFO;
+		framebuffer_info.renderPass = pipeline.render_pass;
+		framebuffer_info.attachmentCount = 1;
+		framebuffer_info.pAttachments = &attachments[0];
+		framebuffer_info.width = swap_chain.extent.width;
+		framebuffer_info.height = swap_chain.extent.height;
+		framebuffer_info.layers = 1;
+		
+		if res := vk.CreateFramebuffer(device, &framebuffer_info, nil, &swap_chain.framebuffers[i]); res != .SUCCESS {
+			fmt.eprintf("Error: Failed to create framebuffer #%d!\n", i);
+      return false;
+		}
+	}
+  return true;
+}
+
+create_command_pool :: proc(using ctx: ^Context) -> (ok : bool)
+{
+	pool_info: vk.CommandPoolCreateInfo;
+	pool_info.sType = .COMMAND_POOL_CREATE_INFO;
+	pool_info.flags = {.RESET_COMMAND_BUFFER};
+	pool_info.queueFamilyIndex = u32(queue_indices[.Graphics]);
+	
+	if res := vk.CreateCommandPool(device, &pool_info, nil, &command_pool); res != .SUCCESS {
+		fmt.eprintf("Error: Failed to create command pool!\n");
+    return false;
+	}
+  return true
+}
+
+create_command_buffers :: proc(using ctx: ^Context) -> (ok : bool)
+{
+	alloc_info: vk.CommandBufferAllocateInfo;
+	alloc_info.sType = .COMMAND_BUFFER_ALLOCATE_INFO;
+	alloc_info.commandPool = command_pool;
+	alloc_info.level = .PRIMARY;
+	alloc_info.commandBufferCount = len(command_buffers);
+	
+	if res := vk.AllocateCommandBuffers(device, &alloc_info, &command_buffers[0]); res != .SUCCESS	{
+
+		fmt.eprintf("Error: Failed to allocate command buffers!\n");
+    return false
+	}
+
+  return true
+}
+
+create_vertex_buffer :: proc(using ctx: ^Context, vertices: []Vertex) -> (ok : bool){
+	vertex_buffer.length = len(vertices);
+	vertex_buffer.size = cast(vk.DeviceSize)(len(vertices) * size_of(Vertex));
+	
+	staging: Buffer;
+	create_buffer(ctx, size_of(Vertex), len(vertices), {.TRANSFER_SRC}, {.HOST_VISIBLE, .HOST_COHERENT}, &staging) or_return
+	
+	data: rawptr;
+	vk.MapMemory(device, staging.memory, 0, vertex_buffer.size, {}, &data);
+  if data == nil {
+    fmt.eprintf("Error: vk.MapMemory Failed");
+    return false
+  }
+  // this is wrong Pointe to pointer data shold not work 
+  mem.copy(data, raw_data(vertices), cast(int)vertex_buffer.size);
+  
+
+	vk.UnmapMemory(device, staging.memory);
+	
+	create_buffer(ctx, size_of(Vertex), len(vertices), {.VERTEX_BUFFER, .TRANSFER_DST}, {.DEVICE_LOCAL}, &vertex_buffer) or_return
+	copy_buffer(ctx, staging, vertex_buffer, vertex_buffer.size);
+	
+	vk.FreeMemory(device, staging.memory, nil);
+	vk.DestroyBuffer(device, staging.buffer, nil);
+  return true;
+}
+
+create_index_buffer :: proc(using ctx: ^Context, indices: []u16) -> (ok : bool){
+	index_buffer.length = len(indices);
+	index_buffer.size = cast(vk.DeviceSize)(len(indices) * size_of(indices[0]));
+	
+	staging: Buffer;
+	create_buffer(ctx, size_of(indices[0]), len(indices), {.TRANSFER_SRC}, {.HOST_VISIBLE, .HOST_COHERENT}, &staging) or_return
+	
+	data: rawptr;
+	vk.MapMemory(device, staging.memory, 0, index_buffer.size, {}, &data);
+	mem.copy(data, raw_data(indices), cast(int)index_buffer.size);
+	vk.UnmapMemory(device, staging.memory);
+	
+	create_buffer(ctx, size_of(Vertex), len(indices), {.INDEX_BUFFER, .TRANSFER_DST}, {.DEVICE_LOCAL}, &index_buffer) or_return; 
+	copy_buffer(ctx, staging, index_buffer, index_buffer.size);
+	
+	vk.FreeMemory(device, staging.memory, nil);
+	vk.DestroyBuffer(device, staging.buffer, nil);
+  return true
+}
+
+copy_buffer :: proc(using ctx: ^Context, src, dst: Buffer, size: vk.DeviceSize)
+{
+	alloc_info := vk.CommandBufferAllocateInfo{
+		sType = .COMMAND_BUFFER_ALLOCATE_INFO,
+		level = .PRIMARY,
+		commandPool = command_pool,
+		commandBufferCount = 1,
+	};
+	
+	cmd_buffer: vk.CommandBuffer;
+	vk.AllocateCommandBuffers(device, &alloc_info, &cmd_buffer);
+	
+	begin_info := vk.CommandBufferBeginInfo{
+		sType = .COMMAND_BUFFER_BEGIN_INFO,
+		flags = {.ONE_TIME_SUBMIT},
+	}
+	
+	vk.BeginCommandBuffer(cmd_buffer, &begin_info);
+	
+	copy_region := vk.BufferCopy{
+		srcOffset = 0,
+		dstOffset = 0,
+		size = size,
+	}
+	vk.CmdCopyBuffer(cmd_buffer, src.buffer, dst.buffer, 1, &copy_region);
+	vk.EndCommandBuffer(cmd_buffer);
+	
+	submit_info := vk.SubmitInfo{
+		sType = .SUBMIT_INFO,
+		commandBufferCount = 1,
+		pCommandBuffers = &cmd_buffer,
+	};
+	
+	vk.QueueSubmit(queues[.Graphics], 1, &submit_info, {});
+	vk.QueueWaitIdle(queues[.Graphics]);
+	vk.FreeCommandBuffers(device, command_pool, 1, &cmd_buffer);
+}
+create_buffer :: proc(using ctx: ^Context, member_size: int, count: int, usage: vk.BufferUsageFlags, properties: vk.MemoryPropertyFlags, buffer: ^Buffer) -> (ok :bool){
+	buffer_info := vk.BufferCreateInfo{
+		sType = .BUFFER_CREATE_INFO,
+		size  = cast(vk.DeviceSize)(member_size * count),
+		usage = usage,
+		sharingMode = .EXCLUSIVE,
+	};
+	
+	if res := vk.CreateBuffer(device, &buffer_info, nil, &buffer.buffer); res != .SUCCESS
+	{
+		fmt.eprintf("Error: failed to create buffer\n");
+		return false
+	}
+	
+	mem_requirements: vk.MemoryRequirements;
+	vk.GetBufferMemoryRequirements(device, buffer.buffer, &mem_requirements);
+	m_ok, mty := find_memory_type(ctx, mem_requirements.memoryTypeBits, {.HOST_VISIBLE, .HOST_COHERENT});
+  m_ok or_return
+
+	alloc_info := vk.MemoryAllocateInfo{
+		sType = .MEMORY_ALLOCATE_INFO,
+		allocationSize = mem_requirements.size,
+		memoryTypeIndex = mty
+	};
+	
+	if res := vk.AllocateMemory(device, &alloc_info, nil, &buffer.memory); res != .SUCCESS
+	{
+		fmt.eprintf("Error: Failed to allocate buffer memory!\n");
+	  return false
+	}
+	
+	vk.BindBufferMemory(device, buffer.buffer, buffer.memory, 0);
+
+  return true
+}
+
+find_memory_type :: proc(using ctx: ^Context, type_filter: u32, properties: vk.MemoryPropertyFlags) -> (ok: bool, content : u32)  {
+	mem_properties: vk.PhysicalDeviceMemoryProperties;
+	vk.GetPhysicalDeviceMemoryProperties(physical_device, &mem_properties);
+	for i in 0..<mem_properties.memoryTypeCount
+	{
+		if (type_filter & (1 << i) != 0) && (mem_properties.memoryTypes[i].propertyFlags & properties) == properties
+		{
+			return true,i;
+		}
+	}
+	
+
+	fmt.eprintf("Error: Failed to find suitable memory type!\n");
+  return false, 0;
+}
+
+
+create_sync_objects :: proc(using ctx: ^Context) -> (ok : bool)
+{
+	semaphore_info: vk.SemaphoreCreateInfo;
+	semaphore_info.sType = .SEMAPHORE_CREATE_INFO;
+	
+	fence_info: vk.FenceCreateInfo;
+	fence_info.sType = .FENCE_CREATE_INFO;
+	fence_info.flags = {.SIGNALED}
+	
+	for i in 0..<MAX_FRAMES_IN_FLIGHT
+	{
+		res := vk.CreateSemaphore(device, &semaphore_info, nil, &image_available[i]);
+		if res != .SUCCESS
+		{
+			fmt.eprintf("Error: Failed to create \"image_available\" semaphore\n");
+			return false
+		}
+		res = vk.CreateSemaphore(device, &semaphore_info, nil, &render_finished[i]);
+		if res != .SUCCESS
+		{
+			fmt.eprintf("Error: Failed to create \"render_finished\" semaphore\n");
+			return false
+		}
+		res = vk.CreateFence(device, &fence_info, nil, &in_flight[i]);
+		if res != .SUCCESS
+		{
+			fmt.eprintf("Error: Failed to create \"in_flight\" fence\n");
+		  return false
+		}
+	}
+
+  return true
+}
+
 

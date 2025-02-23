@@ -42,8 +42,6 @@ Context :: struct
   window: ^sdl3.Window,
   w : i32,
   h : i32,
-
-  
 }
 
 Buffer :: struct
@@ -97,4 +95,26 @@ DEVICE_EXTENSIONS := [?]cstring{
 	"VK_KHR_swapchain",
 };
 VALIDATION_LAYERS := [?]cstring{"VK_LAYER_KHRONOS_validation"};
+
+VERTEX_BINDING := vk.VertexInputBindingDescription{
+	binding = 0,
+	stride = size_of(Vertex),
+	inputRate = .VERTEX,
+};
+
+VERTEX_ATTRIBUTES := [?]vk.VertexInputAttributeDescription{
+	{
+		binding = 0,
+		location = 0,
+		format = .R32G32_SFLOAT,
+		offset = cast(u32)offset_of(Vertex, pos),
+	},
+	{
+		binding = 0,
+		location = 1,
+		format = .R32G32B32_SFLOAT,
+		offset = cast(u32)offset_of(Vertex, color),
+	},
+};
+
 
