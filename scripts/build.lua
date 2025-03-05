@@ -1,1 +1,1 @@
-os.execute("odin build nexo -out=bin/debug/nexo.exe  -debug ")
+os.execute("odin build src -out=bin/debug/chaos.exe  -debug ")
