@@ -1,4 +1,4 @@
-package gpu
+package vk
 
 import "core:c"
 import "core:fmt"
@@ -9,6 +9,7 @@ import "core:slice"
 import "core:strings"
 import "shared:shaderc"
 import "vendor:sdl3"
+import "vendor:cgltf"
 import vk "vendor:vulkan"
 
 copy_buffer :: proc(using ctx: ^Context, src, dst: Buffer, size: vk.DeviceSize) -> bool {
@@ -314,6 +315,7 @@ end_single_time_commands :: proc(ctx: ^Context, command_buffer: ^vk.CommandBuffe
 
 
 copy_buffer_to_image :: proc(ctx: ^Context, buffer: ^Buffer, image: vk.Image, width, height: u32) -> bool {
+  log.debug("vulkan copy_buffer_to_image: START")
 	command_buffer: vk.CommandBuffer = begin_single_time_commands(ctx) or_return
 	region: vk.BufferImageCopy
 	region.bufferOffset = 0
@@ -330,5 +332,33 @@ copy_buffer_to_image :: proc(ctx: ^Context, buffer: ^Buffer, image: vk.Image, wi
 
 	vk.CmdCopyBufferToImage(command_buffer, buffer.buffer, image, .TRANSFER_DST_OPTIMAL, 1, &region)
 	end_single_time_commands(ctx, &command_buffer) or_return
+  log.debug("vulkan copy_buffer_to_image: SUCCESSFULL")
 	return true
 }
+
+
+
+load_model::proc (ctx: ^Context,path: cstring) -> bool{
+  log.debug("vulkan load_model: START")
+  options : cgltf.options = {}
+  data,res :=    cgltf.parse_file(options,path) 
+  if  (res != .success){
+    log.error("vulkan load_model: failed to parse file")
+    return false
+  }
+  defer cgltf.free(data)
+  
+  log.info("Loaded gltf file: %s\n", path )
+  log.info("Number of meshes : %s\n", path )
+  
+  for mesh_index in 0 ..< int(data.meshes.len){
+    mesh := &data.meshes[mesh_index]
+    log.debug("Mesh: %s\n",primitive_index)
+  }
+
+  log.debug("vulkan load_model: SUCCESSFULL")
+  return true
+}
+
+
+

@@ -1,4 +1,4 @@
-package gpu
+package vk
 
 import "core:c"
 import "core:log"

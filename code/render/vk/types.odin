@@ -1,4 +1,4 @@
-package gpu
+package vk
 
 
 import "core:fmt"
@@ -27,9 +27,11 @@ Context :: struct {
 	curr_frame:          u32,
 	framebuffer_resized: bool,
 	window:              ^sdl3.Window,
+
+	// Added 
 	w:                   i32,
 	h:                   i32,
-	// Added 
+  texture_sampler:     vk.Sampler,
 	mssa_samples:        vk.SampleCountFlags,
   mip_leveles :        u32,
 	color_resource:      ImageResource,
@@ -89,6 +91,7 @@ Vertex :: struct {
 
 
 DEVICE_EXTENSIONS := [?]cstring{"VK_KHR_swapchain"}
+
 VALIDATION_LAYERS := [?]cstring{"VK_LAYER_KHRONOS_validation"}
 
 VERTEX_BINDING := vk.VertexInputBindingDescription {
