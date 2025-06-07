@@ -1,1 +1,1 @@
-os.execute("odin run code -out=bin/release/chaos.exe")
+os.execute("odin run code/linux -out=bin/release/chaos.exe")

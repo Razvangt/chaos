@@ -1,6 +1,6 @@
 package vk
 
-import "../utils"
+import "../../utils"
 import "core:c"
 import "core:fmt"
 import "core:log"
@@ -64,18 +64,18 @@ init_vulkan :: proc(ctx: ^Context, vertices: []Vertex, indices: []u16) -> (ok: b
 	create_framebuffers(ctx) or_return
 
 
-  //texture resources 
+	//texture resources 
 	// TODO: add texture path
 	img := utils.load_texture_from_file("Path") or_return
 	create_texture_image(ctx, &img) or_return
 	// no need of image after texture creation on vulkan  buffers 
 	utils.free_image(&img)
-  create_texture_imageview(ctx)
-  create_texture_sampler(ctx)
+	create_texture_imageview(ctx)
+	create_texture_sampler(ctx)
 	// texture sampler 
 
 	// load model ??? 
-	load_model(ctx,"Path") 
+	load_model(ctx, "Path")
 
 	create_vertex_buffer(ctx, vertices) or_return
 	create_index_buffer(ctx, indices) or_return
@@ -828,138 +828,129 @@ create_texture_image :: proc(ctx: ^Context, img: ^utils.ImageInfo) -> bool {
 	vk.FreeMemory(ctx.device, staging_buffer.memory, nil)
 
 
-	generate_mipmaps(
-    ctx,
-    ctx.texture_resource.image,
-    vk.Format.R8G8B8A8_SRGB, 
-    i32(img.width), 
-    i32(img.height), 
-    ctx.mip_leveles
-  ) or_return
+	generate_mipmaps(ctx, ctx.texture_resource.image, vk.Format.R8G8B8A8_SRGB, i32(img.width), i32(img.height), ctx.mip_leveles) or_return
 	log.debug("vulkan create_texture_image: SUCCESSFULL")
 	return true
 }
 
-generate_mipmaps :: proc(ctx: ^Context, image: vk.Image, imageFormat: vk.Format, width, height : i32, mip_leveles: u32) -> bool {
+generate_mipmaps :: proc(ctx: ^Context, image: vk.Image, imageFormat: vk.Format, width, height: i32, mip_leveles: u32) -> bool {
 	log.debug("vulkan generate_mipmaps: START")
 	format_properties: vk.FormatProperties
 	vk.GetPhysicalDeviceFormatProperties(ctx.physical_device, imageFormat, &format_properties)
 
-  // not sure why or how would this happen,I hope to never find out :(
+	// not sure why or how would this happen,I hope to never find out :(
 	if (!(vk.FormatFeatureFlag.SAMPLED_IMAGE_FILTER_LINEAR in format_properties.optimalTilingFeatures)) {
-	  log.debug("vulkan generate_mipmaps: texture image format does not support linear blitting")
-    return false
+		log.debug("vulkan generate_mipmaps: texture image format does not support linear blitting")
+		return false
 	}
-  
-  command_buffer := begin_single_time_commands(ctx) or_return
-  
-  barrier : vk.ImageMemoryBarrier
-  barrier.sType                           = .IMAGE_MEMORY_BARRIER
-  barrier.image                           = image
-	barrier.srcQueueFamilyIndex             = vk.QUEUE_FAMILY_IGNORED
-  barrier.dstQueueFamilyIndex             = vk.QUEUE_FAMILY_IGNORED
-  barrier.subresourceRange.aspectMask     = {vk.ImageAspectFlag.COLOR}
-  barrier.subresourceRange.baseArrayLayer = 0;
-  barrier.subresourceRange.layerCount     = 1;
-  barrier.subresourceRange.levelCount     = 1;
 
-  
-  mip_width  := width
-  mip_height := height
+	command_buffer := begin_single_time_commands(ctx) or_return
 
-  for i in 1 ..<mip_leveles {
-    barrier.subresourceRange.baseArrayLayer = i-1;
-    barrier.oldLayout     = vk.ImageLayout.TRANSFER_DST_OPTIMAL 
-    barrier.newLayout     = vk.ImageLayout.TRANSFER_SRC_OPTIMAL
-    barrier.srcAccessMask = {vk.AccessFlag.TRANSFER_WRITE} 
-    barrier.dstAccessMask = {vk.AccessFlag.TRANSFER_READ} 
+	barrier: vk.ImageMemoryBarrier
+	barrier.sType = .IMAGE_MEMORY_BARRIER
+	barrier.image = image
+	barrier.srcQueueFamilyIndex = vk.QUEUE_FAMILY_IGNORED
+	barrier.dstQueueFamilyIndex = vk.QUEUE_FAMILY_IGNORED
+	barrier.subresourceRange.aspectMask = {vk.ImageAspectFlag.COLOR}
+	barrier.subresourceRange.baseArrayLayer = 0
+	barrier.subresourceRange.layerCount = 1
+	barrier.subresourceRange.levelCount = 1
 
-    vk.CmdPipelineBarrier(
-      command_buffer,
-      {vk.PipelineStageFlag.TRANSFER},
-      {vk.PipelineStageFlag.TRANSFER},
-      {},
-      0,
-      nil,
-      0,
-      nil,
-      1,
-      &barrier)
 
-    blit : vk.ImageBlit 
-    blit.srcOffsets[0] = {0,0,0}
-    blit.srcOffsets[1] = {width, height, 1}
-    blit.srcSubresource.aspectMask = {vk.ImageAspectFlag.COLOR}
-    blit.srcSubresource.mipLevel   = i-1;
-    blit.srcSubresource.baseArrayLayer   = 0;
-    blit.srcSubresource.layerCount   = 1;
+	mip_width := width
+	mip_height := height
 
-    blit.dstOffsets[0] = {0,0,0}
-    blit.dstOffsets[1] = {
-        mip_width  > 1 ? mip_width  /2  :  1,
-        mip_height > 1 ? mip_height /2  :  1,
-        1
-    }
-    blit.dstSubresource.aspectMask = {vk.ImageAspectFlag.COLOR}
-    blit.dstSubresource.mipLevel = 1
-    blit.dstSubresource.baseArrayLayer = 0
-    blit.dstSubresource.layerCount = 1
-    
-    vk.CmdBlitImage(
-      command_buffer,
-      image,
-      vk.ImageLayout.TRANSFER_SRC_OPTIMAL,
-      image,
-      vk.ImageLayout.TRANSFER_DST_OPTIMAL,
-      1,
-      &blit,
-      vk.Filter.LINEAR
-    )
+	for i in 1 ..< mip_leveles {
+		barrier.subresourceRange.baseArrayLayer = i - 1
+		barrier.oldLayout = vk.ImageLayout.TRANSFER_DST_OPTIMAL
+		barrier.newLayout = vk.ImageLayout.TRANSFER_SRC_OPTIMAL
+		barrier.srcAccessMask = {vk.AccessFlag.TRANSFER_WRITE}
+		barrier.dstAccessMask = {vk.AccessFlag.TRANSFER_READ}
 
-    barrier.oldLayout = vk.ImageLayout.TRANSFER_SRC_OPTIMAL
-    barrier.newLayout = vk.ImageLayout.SHADER_READ_ONLY_OPTIMAL
-    barrier.srcAccessMask = {vk.AccessFlags.TRANSFER_READ}
-    barrier.dstAccessMask = {vk.AccessFlags.SHADER_READ}
-    
-    vk.CmdPipelineBarrier(command_buffer,
-      {vk.PipelineStageFlag.TRANSFER},
-      {vk.PipelineStageFlag.FRAGMENT_SHADER},
-      {},
-      0,
-      nil,
-      0,
-      nil,
-      1,
-      &barrier
-    )
-    if mip_width > 1{
-      mip_width /= 2
-    }
-    if mip_height > 1 {
-      mip_height /=2 
-    }
-  }
-  
-  barrier.subresourceRange.baseMipLevel = mip_leveles - 1
-  barrier.oldLayout  = vk.ImageLayout.TRANSFER_DST_OPTIMAL
-  barrier.newLayout  = vk.ImageLayout.SHADER_READ_ONLY_OPTIMAL
-  barrier.srcAccessMask  = {vk.AccessFlag.TRANSFER_WRITE}
-  barrier.dstAccessMask  = {vk.AccessFlag.SHADER_READ}
-  
-  vk.CmdPipelineBarrier(
-    command_buffer, 
-    {vk.PipelineStageFlag.TRANSFER},
-    {vk.PipelineStageFlag.FRAGMENT_SHADER},
-  {},
-    0,
-    nil,
-    0,
-    nil,
-    1,
-    &barrier
-  )
+		vk.CmdPipelineBarrier(
+			command_buffer,
+			{vk.PipelineStageFlag.TRANSFER},
+			{vk.PipelineStageFlag.TRANSFER},
+			{},
+			0,
+			nil,
+			0,
+			nil,
+			1,
+			&barrier,
+		)
 
-  end_single_time_commands(ctx,&command_buffer) or_return
+		blit: vk.ImageBlit
+		blit.srcOffsets[0] = {0, 0, 0}
+		blit.srcOffsets[1] = {width, height, 1}
+		blit.srcSubresource.aspectMask = {vk.ImageAspectFlag.COLOR}
+		blit.srcSubresource.mipLevel = i - 1
+		blit.srcSubresource.baseArrayLayer = 0
+		blit.srcSubresource.layerCount = 1
+
+		blit.dstOffsets[0] = {0, 0, 0}
+		blit.dstOffsets[1] = {mip_width > 1 ? mip_width / 2 : 1, mip_height > 1 ? mip_height / 2 : 1, 1}
+		blit.dstSubresource.aspectMask = {vk.ImageAspectFlag.COLOR}
+		blit.dstSubresource.mipLevel = 1
+		blit.dstSubresource.baseArrayLayer = 0
+		blit.dstSubresource.layerCount = 1
+
+		vk.CmdBlitImage(
+			command_buffer,
+			image,
+			vk.ImageLayout.TRANSFER_SRC_OPTIMAL,
+			image,
+			vk.ImageLayout.TRANSFER_DST_OPTIMAL,
+			1,
+			&blit,
+			vk.Filter.LINEAR,
+		)
+
+		barrier.oldLayout = vk.ImageLayout.TRANSFER_SRC_OPTIMAL
+		barrier.newLayout = vk.ImageLayout.SHADER_READ_ONLY_OPTIMAL
+		barrier.srcAccessMask = {vk.AccessFlags.TRANSFER_READ}
+		barrier.dstAccessMask = {vk.AccessFlags.SHADER_READ}
+
+		vk.CmdPipelineBarrier(
+			command_buffer,
+			{vk.PipelineStageFlag.TRANSFER},
+			{vk.PipelineStageFlag.FRAGMENT_SHADER},
+			{},
+			0,
+			nil,
+			0,
+			nil,
+			1,
+			&barrier,
+		)
+		if mip_width > 1 {
+			mip_width /= 2
+		}
+		if mip_height > 1 {
+			mip_height /= 2
+		}
+	}
+
+	barrier.subresourceRange.baseMipLevel = mip_leveles - 1
+	barrier.oldLayout = vk.ImageLayout.TRANSFER_DST_OPTIMAL
+	barrier.newLayout = vk.ImageLayout.SHADER_READ_ONLY_OPTIMAL
+	barrier.srcAccessMask = {vk.AccessFlag.TRANSFER_WRITE}
+	barrier.dstAccessMask = {vk.AccessFlag.SHADER_READ}
+
+	vk.CmdPipelineBarrier(
+		command_buffer,
+		{vk.PipelineStageFlag.TRANSFER},
+		{vk.PipelineStageFlag.FRAGMENT_SHADER},
+		{},
+		0,
+		nil,
+		0,
+		nil,
+		1,
+		&barrier,
+	)
+
+	end_single_time_commands(ctx, &command_buffer) or_return
 	log.debug("vulkan generate_mipmaps: SUCCESSFULL")
 	return true
 }
@@ -1019,52 +1010,45 @@ transition_image_layout :: proc(ctx: ^Context, image: vk.Image, format: vk.Forma
 	return true
 }
 
-create_texture_imageview:: proc(ctx : ^Context)  -> bool{
+create_texture_imageview :: proc(ctx: ^Context) -> bool {
 	log.debug("vulkan create_texture_imageview: START")
-  view_info := create_image_view_info(
-      ctx.texture_resource.image,
-    vk.Format.R8G8B8A8_SRGB,
-    {vk.ImageAspectFlag.COLOR},
-    ctx.mip_leveles
-  )
+	view_info := create_image_view_info(ctx.texture_resource.image, vk.Format.R8G8B8A8_SRGB, {vk.ImageAspectFlag.COLOR}, ctx.mip_leveles)
 
-  if res := vk.CreateImageView(ctx.device, &view_info,nil, &ctx.texture_resource.view); res != .SUCCESS{
-	  log.error("vulkan create_texture_imageview: failed to create texture image view")
-    return false
-  }
+	if res := vk.CreateImageView(ctx.device, &view_info, nil, &ctx.texture_resource.view); res != .SUCCESS {
+		log.error("vulkan create_texture_imageview: failed to create texture image view")
+		return false
+	}
 	log.debug("vulkan create_texture_imageview: SUCCESSFULL")
-  return true
+	return true
 }
 
-create_texture_sampler::proc(ctx : ^Context) -> bool{
+create_texture_sampler :: proc(ctx: ^Context) -> bool {
 	log.debug("vulkan create_texture_sampler: START")
-  properties : vk.PhysicalDeviceProperties  
-  vk.GetPhysicalDeviceProperties(ctx.physical_device,&properties)
-  sampler_info : vk.SamplerCreateInfo
-  sampler_info.sType        = .SAMPLER_CREATE_INFO
-  sampler_info.magFilter    = .LINEAR
-  sampler_info.minFilter    = .LINEAR
-  sampler_info.addressModeU = .REPEAT
-  sampler_info.addressModeV = .REPEAT
-  sampler_info.addressModeW = .REPEAT
-  sampler_info.anisotropyEnable = true
-  sampler_info.maxAnisotropy = properties.limits.maxSamplerAnisotropy
-  sampler_info.borderColor   = .INT_OPAQUE_BLACK
-  sampler_info.unnormalizedCoordinates   =  false
-  sampler_info.compareEnable   =  false
-  sampler_info.compareOp       =  .ALWAYS
-  sampler_info.mipmapMode      = .LINEAR
-  sampler_info.minLod          = 0.0
-  sampler_info.maxLod          = f32(ctx.mip_leveles)
-  sampler_info.mipLodBias      = 0.0
-  
-  if res := vk.CreateSampler(ctx.device, &sampler_info, nil,&ctx.texture_sampler); res != .SUCCESS{ 
-    log.error("vulkan create_texture_sampler: failed  CreateSampler")
-    return false
-  }
+	properties: vk.PhysicalDeviceProperties
+	vk.GetPhysicalDeviceProperties(ctx.physical_device, &properties)
+	sampler_info: vk.SamplerCreateInfo
+	sampler_info.sType = .SAMPLER_CREATE_INFO
+	sampler_info.magFilter = .LINEAR
+	sampler_info.minFilter = .LINEAR
+	sampler_info.addressModeU = .REPEAT
+	sampler_info.addressModeV = .REPEAT
+	sampler_info.addressModeW = .REPEAT
+	sampler_info.anisotropyEnable = true
+	sampler_info.maxAnisotropy = properties.limits.maxSamplerAnisotropy
+	sampler_info.borderColor = .INT_OPAQUE_BLACK
+	sampler_info.unnormalizedCoordinates = false
+	sampler_info.compareEnable = false
+	sampler_info.compareOp = .ALWAYS
+	sampler_info.mipmapMode = .LINEAR
+	sampler_info.minLod = 0.0
+	sampler_info.maxLod = f32(ctx.mip_leveles)
+	sampler_info.mipLodBias = 0.0
+
+	if res := vk.CreateSampler(ctx.device, &sampler_info, nil, &ctx.texture_sampler); res != .SUCCESS {
+		log.error("vulkan create_texture_sampler: failed  CreateSampler")
+		return false
+	}
 
 	log.debug("vulkan create_texture_sampler: SUCCESSFULL")
-  return true
+	return true
 }
-
-

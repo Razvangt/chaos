@@ -1,19 +1,14 @@
-package chaos
+package windows
 
-import "../../engine"
-import "../../game"
-import "../../render/vk"
-import "core:fmt"
+import "../common"
+import "../render/vk"
 import "core:log"
 import "core:math"
 import "vendor:sdl3"
-import "vendor:vulkan"
 
-VulkanPlatformApp :: struct {
-	rend: vk.Context,
-}
-
-main_windows :: proc() {
+main :: proc() {
+	context.logger = log.create_console_logger()
+	log.info("Start of Windows Chaos ")
 	state: VulkanPlatformApp
 
 	if !init_windows(&state) do return
@@ -37,6 +32,7 @@ main_windows :: proc() {
 		if !vk.draw_frame(&state.rend, vertices[:], indices[:]) do return
 	}
 
+	log.info("End of Windows Chaos ")
 }
 
 
@@ -75,3 +71,4 @@ finish_windows :: proc(state: ^VulkanPlatformApp) {
 	sdl3.Quit() // Ensure sdl3 is quit when the program exits 
 	log.debug("cleanup SUCCESFULL")
 }
+

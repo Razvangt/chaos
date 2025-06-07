@@ -1,1 +1,1 @@
-os.execute("odin build code -out=bin/debug/chaos.exe  -debug ")
+os.execute("odin build code/windows -out=bin/debug/chaos.exe  -debug ")
