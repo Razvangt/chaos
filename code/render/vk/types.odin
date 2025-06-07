@@ -31,12 +31,12 @@ Context :: struct {
 	// Added 
 	w:                   i32,
 	h:                   i32,
-  texture_sampler:     vk.Sampler,
+	texture_sampler:     vk.Sampler,
 	mssa_samples:        vk.SampleCountFlags,
-  mip_leveles :        u32,
+	mip_leveles:         u32,
 	color_resource:      ImageResource,
 	depth_resource:      ImageResource,
-  texture_resource:    ImageResource,
+	texture_resource:    ImageResource,
 }
 
 Buffer :: struct {

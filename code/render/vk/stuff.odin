@@ -8,12 +8,12 @@ import "core:os"
 import "core:slice"
 import "core:strings"
 import "shared:shaderc"
+import "vendor:cgltf" 
 import "vendor:sdl3"
-import "vendor:cgltf"
 import vk "vendor:vulkan"
 
 copy_buffer :: proc(using ctx: ^Context, src, dst: Buffer, size: vk.DeviceSize) -> bool {
-  log.debug("vulkan copy_buffer: START")
+	log.debug("vulkan copy_buffer: START")
 	alloc_info := vk.CommandBufferAllocateInfo {
 		sType              = .COMMAND_BUFFER_ALLOCATE_INFO,
 		level              = .PRIMARY,
@@ -22,10 +22,10 @@ copy_buffer :: proc(using ctx: ^Context, src, dst: Buffer, size: vk.DeviceSize) 
 	}
 
 	cmd_buffer: vk.CommandBuffer
-	if res := vk.AllocateCommandBuffers(device, &alloc_info, &cmd_buffer);res != .SUCCESS{
-    log.error("vulkan copy_buffer: failed to AllocateMemory")
-    return false
-  }
+	if res := vk.AllocateCommandBuffers(device, &alloc_info, &cmd_buffer); res != .SUCCESS {
+		log.error("vulkan copy_buffer: failed to AllocateMemory")
+		return false
+	}
 
 	begin_info := vk.CommandBufferBeginInfo {
 		sType = .COMMAND_BUFFER_BEGIN_INFO,
@@ -33,9 +33,9 @@ copy_buffer :: proc(using ctx: ^Context, src, dst: Buffer, size: vk.DeviceSize) 
 	}
 
 	if res := vk.BeginCommandBuffer(cmd_buffer, &begin_info); res != .SUCCESS {
-    log.error("vulkan copy_buffer: failed to BeginCommandBuffer")
-    return false
-  }
+		log.error("vulkan copy_buffer: failed to BeginCommandBuffer")
+		return false
+	}
 
 	copy_region := vk.BufferCopy {
 		srcOffset = 0,
@@ -43,10 +43,10 @@ copy_buffer :: proc(using ctx: ^Context, src, dst: Buffer, size: vk.DeviceSize) 
 		size      = size,
 	}
 	vk.CmdCopyBuffer(cmd_buffer, src.buffer, dst.buffer, 1, &copy_region)
-	if res := vk.EndCommandBuffer(cmd_buffer); res != .SUCCESS {  
-    log.error("vulkan copy_buffer: failed to EndCommandBuffer")
-    return false
-  }
+	if res := vk.EndCommandBuffer(cmd_buffer); res != .SUCCESS {
+		log.error("vulkan copy_buffer: failed to EndCommandBuffer")
+		return false
+	}
 
 	submit_info := vk.SubmitInfo {
 		sType              = .SUBMIT_INFO,
@@ -54,19 +54,19 @@ copy_buffer :: proc(using ctx: ^Context, src, dst: Buffer, size: vk.DeviceSize) 
 		pCommandBuffers    = &cmd_buffer,
 	}
 
-	if res := vk.QueueSubmit(queues[.Graphics], 1, &submit_info, {}) ; res != .SUCCESS {
-    log.error("vulkan copy_buffer: failed to QueueSubmit")
-    return false
-  }
+	if res := vk.QueueSubmit(queues[.Graphics], 1, &submit_info, {}); res != .SUCCESS {
+		log.error("vulkan copy_buffer: failed to QueueSubmit")
+		return false
+	}
 
 	if res := vk.QueueWaitIdle(queues[.Graphics]); res != .SUCCESS {
-    log.error("vulkan copy_buffer: failed to QueueWaitIdle")
-    return false
-  }
+		log.error("vulkan copy_buffer: failed to QueueWaitIdle")
+		return false
+	}
 	vk.FreeCommandBuffers(device, command_pool, 1, &cmd_buffer)
 
-  log.debug("vulkan copy_buffer: SUCCESSFULL")
-  return true
+	log.debug("vulkan copy_buffer: SUCCESSFULL")
+	return true
 }
 
 create_buffer :: proc(
@@ -108,10 +108,10 @@ create_buffer :: proc(
 		return false
 	}
 
-	if res := vk.BindBufferMemory(device, buffer.buffer, buffer.memory, 0); res != .SUCCESS{
-    log.debug("vulkan create_buffer: failed to BindBufferMemory")
-    return false
-  }
+	if res := vk.BindBufferMemory(device, buffer.buffer, buffer.memory, 0); res != .SUCCESS {
+		log.debug("vulkan create_buffer: failed to BindBufferMemory")
+		return false
+	}
 
 	log.debug("vulkan create_buffer: SUCCESSFULL")
 	return true
@@ -167,7 +167,7 @@ get_suitable_device :: proc(using ctx: ^Context) -> (ok: bool) {
 	}
 
 	if (hiscore == 0) {
-    log.error("vulkan get_suitable_device: failed to find a suitable GPU")
+		log.error("vulkan get_suitable_device: failed to find a suitable GPU")
 		return false
 	}
 
@@ -259,7 +259,7 @@ get_mssa_samples :: proc(using ctx: ^Context) {
 
 
 begin_single_time_commands :: proc(using ctx: ^Context) -> (commandBuffer: vk.CommandBuffer, ok: bool) {
-  log.debug("vulkan begin_single_time_commands: START")
+	log.debug("vulkan begin_single_time_commands: START")
 	allocInfo: vk.CommandBufferAllocateInfo
 	allocInfo.sType = vk.StructureType.COMMAND_BUFFER_ALLOCATE_INFO
 	allocInfo.level = vk.CommandBufferLevel.PRIMARY
@@ -267,7 +267,7 @@ begin_single_time_commands :: proc(using ctx: ^Context) -> (commandBuffer: vk.Co
 	allocInfo.commandBufferCount = 1
 
 	if res := vk.AllocateCommandBuffers(device, &allocInfo, &commandBuffer); res != .SUCCESS {
-    log.error("vulkan begin_single_time_commands: failed to AllocateCommandBuffers")
+		log.error("vulkan begin_single_time_commands: failed to AllocateCommandBuffers")
 		return commandBuffer, false
 	}
 
@@ -276,17 +276,17 @@ begin_single_time_commands :: proc(using ctx: ^Context) -> (commandBuffer: vk.Co
 	beginInfo.flags = {.ONE_TIME_SUBMIT}
 
 	if res := vk.BeginCommandBuffer(commandBuffer, &beginInfo); res != .SUCCESS {
-    log.error("vulkan begin_single_time_commands: failed  BeginCommandBuffer")
+		log.error("vulkan begin_single_time_commands: failed  BeginCommandBuffer")
 		return commandBuffer, false
 	}
 
-  log.debug("vulkan begin_single_time_commands: SUCCESSFULL")
+	log.debug("vulkan begin_single_time_commands: SUCCESSFULL")
 	return commandBuffer, true
 }
 
 
 end_single_time_commands :: proc(ctx: ^Context, command_buffer: ^vk.CommandBuffer) -> bool {
-  log.debug("vulkan end_single_time_commands: START")
+	log.debug("vulkan end_single_time_commands: START")
 	if res := vk.EndCommandBuffer(command_buffer^); res != .SUCCESS {
 		log.error("vulkan end_single_time_commands: failed on EndCommandBuffer")
 		return false
@@ -309,13 +309,13 @@ end_single_time_commands :: proc(ctx: ^Context, command_buffer: ^vk.CommandBuffe
 
 	vk.FreeCommandBuffers(ctx.device, ctx.command_pool, 1, command_buffer)
 
-  log.debug("vulkan end_single_time_commands: SUCCESSFULL")
+	log.debug("vulkan end_single_time_commands: SUCCESSFULL")
 	return true
 }
 
 
 copy_buffer_to_image :: proc(ctx: ^Context, buffer: ^Buffer, image: vk.Image, width, height: u32) -> bool {
-  log.debug("vulkan copy_buffer_to_image: START")
+	log.debug("vulkan copy_buffer_to_image: START")
 	command_buffer: vk.CommandBuffer = begin_single_time_commands(ctx) or_return
 	region: vk.BufferImageCopy
 	region.bufferOffset = 0
@@ -332,33 +332,30 @@ copy_buffer_to_image :: proc(ctx: ^Context, buffer: ^Buffer, image: vk.Image, wi
 
 	vk.CmdCopyBufferToImage(command_buffer, buffer.buffer, image, .TRANSFER_DST_OPTIMAL, 1, &region)
 	end_single_time_commands(ctx, &command_buffer) or_return
-  log.debug("vulkan copy_buffer_to_image: SUCCESSFULL")
+	log.debug("vulkan copy_buffer_to_image: SUCCESSFULL")
 	return true
 }
 
 
-
-load_model::proc (ctx: ^Context,path: cstring) -> bool{
-  log.debug("vulkan load_model: START")
-  options : cgltf.options = {}
-  data,res :=    cgltf.parse_file(options,path) 
-  if  (res != .success){
-    log.error("vulkan load_model: failed to parse file")
-    return false
-  }
-  defer cgltf.free(data)
+load_model :: proc(ctx: ^Context, path: cstring) -> bool {
+	log.debug("vulkan load_model: START")
+	options: cgltf.options = {}
+	data, res := cgltf.parse_file(options, path)
+	if (res != .success) {
+		log.error("vulkan load_model: failed to parse file")
+		return false
+	}
+	defer cgltf.free(data)
   
-  log.info("Loaded gltf file: %s\n", path )
-  log.info("Number of meshes : %s\n", path )
-  
-  for mesh_index in 0 ..< int(data.meshes.len){
-    mesh := &data.meshes[mesh_index]
-    log.debug("Mesh: %s\n",primitive_index)
-  }
 
-  log.debug("vulkan load_model: SUCCESSFULL")
-  return true
+	log.info("Loaded gltf file: %s\n", path)
+	log.info("Number of meshes : %s\n", path)
+
+	for mesh_index in 0 ..< int(len(data.meshes)) {
+		mesh := &data.meshes[mesh_index]
+		log.debug("Mesh: %s", mesh.primitives)
+	}
+
+	log.debug("vulkan load_model: SUCCESSFULL")
+	return true
 }
-
-
-

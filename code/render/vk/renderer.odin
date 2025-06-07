@@ -1,6 +1,7 @@
 package vk
 
 import "../../utils"
+import "base:runtime"
 import "core:c"
 import "core:fmt"
 import "core:log"
@@ -66,7 +67,7 @@ init_vulkan :: proc(ctx: ^Context, vertices: []Vertex, indices: []u16) -> (ok: b
 
 	//texture resources 
 	// TODO: add texture path
-	img := utils.load_texture_from_file("Path") or_return
+	img := utils.load_texture_from_file("res/textures/viking_room.png") or_return
 	create_texture_image(ctx, &img) or_return
 	// no need of image after texture creation on vulkan  buffers 
 	utils.free_image(&img)
@@ -75,7 +76,7 @@ init_vulkan :: proc(ctx: ^Context, vertices: []Vertex, indices: []u16) -> (ok: b
 	// texture sampler 
 
 	// load model ??? 
-	load_model(ctx, "Path")
+	load_model(ctx, " models/")
 
 	create_vertex_buffer(ctx, vertices) or_return
 	create_index_buffer(ctx, indices) or_return
@@ -98,26 +99,64 @@ clean_vulkan :: proc(using ctx: ^Context) {
 	vk.DestroyInstance(instance, nil)
 }
 
+debug_callback :: proc "system" (
+	message_severity: vk.DebugUtilsMessageSeverityFlagsEXT,
+	message_type: vk.DebugUtilsMessageTypeFlagsEXT,
+	callback_data: ^vk.DebugUtilsMessengerCallbackDataEXT,
+	user_data: rawptr,
+) -> b32 {
+	context = runtime.default_context()
+	fmt.fprintf(os.stderr, "Validation Layer (%d, %d): ", message_severity, message_type)
+	fmt.fprintf(os.stderr, "%s\n", callback_data.pMessage)
+
+	return false
+}
+
+
 create_instance :: proc(using ctx: ^Context) -> (ok: bool) {
 	log.debug("vulkan create_instance START")
 
 	when ODIN_DEBUG {
+		log.info("Validation layers enabled")
 		if (!is_validation_layer_support_on()) {
 			log.panic("validation layers requested but not available")
 		}
 	}
 
-	appInfo: vk.ApplicationInfo
-	appInfo.sType = vk.StructureType.APPLICATION_INFO
-	appInfo.pApplicationName = "ChaosRenderer"
-	appInfo.applicationVersion = vk.MAKE_VERSION(1, 0, 0)
-	appInfo.pEngineName = "ChaosEngine"
-	appInfo.engineVersion = vk.MAKE_VERSION(1, 0, 0)
-	appInfo.apiVersion = vk.API_VERSION_1_3
+	appInfo := vk.ApplicationInfo {
+		sType              = vk.StructureType.APPLICATION_INFO,
+		pApplicationName   = "ChaosRenderer",
+		applicationVersion = vk.MAKE_VERSION(1, 0, 0),
+		pEngineName        = "ChaosEngine",
+		engineVersion      = vk.MAKE_VERSION(1, 0, 0),
+		apiVersion         = vk.API_VERSION_1_3,
+	}
 
-	createinfo := vk.InstanceCreateInfo{}
-	createinfo.sType = vk.StructureType.INSTANCE_CREATE_INFO
-	createinfo.pApplicationInfo = &appInfo
+	createinfo := vk.InstanceCreateInfo {
+		sType            = vk.StructureType.INSTANCE_CREATE_INFO,
+		pApplicationInfo = &appInfo,
+	}
+
+	when ODIN_DEBUG {
+		validation_layers := VALIDATION_LAYERS
+
+		log.info("Enabling validation layers:")
+		log.info(" Layer: ", validation_layers[0])
+
+		createinfo.ppEnabledLayerNames = &validation_layers[0]
+		createinfo.enabledLayerCount = len(validation_layers)
+
+		debug_create_info := vk.DebugUtilsMessengerCreateInfoEXT {
+			sType           = vk.StructureType.DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+			messageSeverity = {.VERBOSE, .INFO, .ERROR, .WARNING},
+			// TODO: do I want to enable the address binding messages?
+			messageType     = {.GENERAL, .VALIDATION, .PERFORMANCE},
+			pfnUserCallback = debug_callback,
+		}
+
+
+		createinfo.pNext = &debug_create_info
+	}
 
 	count: u32
 	extensions := sdl3.Vulkan_GetInstanceExtensions(&count)

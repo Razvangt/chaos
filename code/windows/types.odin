@@ -18,7 +18,7 @@ indices := [?]u16{0, 1, 2, 2, 3, 0}
 
 
 VulkanPlatformApp :: struct {
-	rend: vk.Context,
+	rend:    vk.Context,
+	title:   cstring,
+	running: bool,
 }
-
-

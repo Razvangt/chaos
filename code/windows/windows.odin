@@ -6,18 +6,25 @@ import "core:log"
 import "core:math"
 import "vendor:sdl3"
 
+// i may be able to have a helper lib with sdl 
+
 main :: proc() {
 	context.logger = log.create_console_logger()
 	log.info("Start of Windows Chaos ")
 	state: VulkanPlatformApp
+	state.title = common.GAME_TITLE
+	state.rend = {}
+	state.rend.w = common.init_width
+	state.rend.h = common.init_heigth
+
 
 	if !init_windows(&state) do return
 	defer finish_windows(&state)
 
 	for state.running {
+		common.game_update()
 		event: sdl3.Event
 		for sdl3.PollEvent(&event) {
-			game.GameUpdateAndRender()
 			if (event.type == sdl3.EventType.QUIT) {
 				log.debug("checkEvents QUIT")
 				state.running = false
@@ -61,14 +68,16 @@ init_windows :: proc(state: ^VulkanPlatformApp) -> bool {
 	}
 
 	vk.init_vulkan(&rend, vertices[:], indices[:]) or_return
+
+	common.game_init()
 	return true
 }
 
 //cleanup render and vulkan
 finish_windows :: proc(state: ^VulkanPlatformApp) {
+	common.game_end()
 	vk.clean_vulkan(&state.rend)
 	sdl3.DestroyWindow(state.rend.window)
 	sdl3.Quit() // Ensure sdl3 is quit when the program exits 
 	log.debug("cleanup SUCCESFULL")
 }
-
